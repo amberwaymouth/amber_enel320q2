@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Sep 19 12:45:37 2023
+
+@author: amberwaymouth
+"""
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import butter, lfilter
+import wave
+import struct
+import os 
+
+
+sampling_rate = 44100
+cutoff_frequency = 80
+
+def envelope_detector(signal):
+    envelope = np.abs(signal)
+    return envelope
+
+def low_pass_filter(signal, sampling_rate, cutoff_frequency):
+    nyquist_freq = 1/2 * sampling_rate
+    normal_cutoff = cutoff_frequency / nyquist_freq
+    b, a = butter(1, normal_cutoff, btype='low', analog=False)
+    filtered_signal = lfilter(b, a, signal)
+    return filtered_signal
+
+with open('/Users/amberwaymouth/Downloads/am_mystery_song.txt', 'r') as file:
+    sr_t = [float(line.strip()) for line in file]
+
+duration = len(sr_t)/44100
+
+t = np.linspace(0, duration, len(sr_t), endpoint=False)
+
+envelope = envelope_detector(sr_t)
+m_t = low_pass_filter(envelope, sampling_rate, cutoff_frequency) 
+m_t = m_t - np.mean(m_t)
+max_value = np.max(m_t)
+min_value = np.min(m_t)
+
+output_audio_file = 'output_audio.wav'
+sample_width = 2
+n_channels = 1
+frame_rate = sampling_rate
+n_frames = len(m_t)
+
+output_directory = os.path.expanduser('~')
+
+output_audio_file = os.path.join(output_directory, 'output_audio.wav')
+
+with wave.open(output_audio_file, 'w') as wav_file:
+    wav_file.setparams((n_channels, sample_width, frame_rate, n_frames, 'NONE', 'not compressed'))
+    dynamic_range = max_value - min_value
+
+    scaling_factor = 65535 / dynamic_range
+
+    audio_data = np.int16((m_t - min_value) * scaling_factor - 32768)
+
+    wav_file.writeframes(struct.pack('h' * n_frames, *audio_data))
+
+plt.figure(figsize=(10, 6))
+plt.subplot(2, 1, 1)
+plt.plot(t, sr_t, label='Received Signal')
+plt.title('Received Signal')
+plt.subplot(2, 1, 2)
+plt.plot(t, m_t, label='Recovered Message Signal')
+plt.title('Recovered Message Signal')
+plt.xlabel('Time (s)')
+plt.tight_layout()
+plt.show()
